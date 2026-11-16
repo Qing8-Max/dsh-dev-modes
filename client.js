@@ -44,20 +44,30 @@ window.__ModuleLoader__.load({
       return await res.json();
     }
 
-    /** 通用开关按钮：读一次状态，之后每 5 秒刷新。 */
-    function useSwitch(apiPath, key, fallback) {
-      const [value, setValue] = React.useState(fallback);
+    function stateUrl(apiPath, sessionId) {
+      return apiPath + '/state' + (sessionId ? '?sessionId=' + encodeURIComponent(sessionId) : '');
+    }
+
+    /**
+     * 一个开关按钮。
+     * sessionId 来自插槽标准 props —— 必须带上，否则宿主只能猜"当前会话"，
+     * 多开窗口时会写到别的会话去（表现就是"点了没反应 / 关不掉"）。
+     */
+    function SwitchButton({ apiPath, sessionId, swKey, iconOn, iconOff, labelOn, labelOff, titleOn, titleOff }) {
+      const [value, setValue] = React.useState(true);
       const [ready, setReady] = React.useState(false);
+      const [busy, setBusy] = React.useState(false);
+      const [note, setNote] = React.useState('');
 
       const refresh = React.useCallback(async () => {
         try {
-          const s = await getJson(apiPath + '/state');
+          const s = await getJson(stateUrl(apiPath, sessionId));
           setReady(Boolean(s.ready));
-          setValue(s[key] !== false);
+          setValue(s[swKey] !== false);
         } catch (e) {
           setReady(false);
         }
-      }, [apiPath, key]);
+      }, [apiPath, sessionId, swKey]);
 
       React.useEffect(() => {
         refresh();
@@ -65,34 +75,20 @@ window.__ModuleLoader__.load({
         return () => clearInterval(id);
       }, [refresh]);
 
-      const set = React.useCallback(
-        async (next) => {
-          await postJson(apiPath + '/set', { [key]: next });
-          setValue(next);
-        },
-        [apiPath, key],
-      );
-
-      return { value, ready, set };
-    }
-
-    function SwitchButton({ apiPath, key, iconOn, iconOff, labelOn, labelOff, titleOn, titleOff, warnWhenOn }) {
-      const { value, ready, set } = useSwitch(apiPath, key, key !== 'locked');
-      const [busy, setBusy] = React.useState(false);
-      const [note, setNote] = React.useState('');
-
       const onClick = async () => {
         if (busy || !ready) return;
         setBusy(true);
         setNote('');
+        const next = !value;
         try {
-          const next = !value;
-          await set(next);
+          await postJson(apiPath + '/set', { sessionId, [swKey]: next });
+          setValue(next);
           setNote(next ? '已开启' : '已关闭');
           setTimeout(() => setNote(''), 3000);
+          setTimeout(refresh, 300);
         } catch (e) {
           setNote('切换失败：' + ((e && e.message) || String(e)));
-          setTimeout(() => setNote(''), 5000);
+          setTimeout(() => setNote(''), 6000);
         } finally {
           setBusy(false);
         }
@@ -100,8 +96,13 @@ window.__ModuleLoader__.load({
 
       const icon = !ready ? '⏳' : value ? iconOn : iconOff;
       const label = !ready ? '未就绪' : value ? labelOn : labelOff;
-      const title = !ready ? '本会话尚未建立，稍后再试' : value ? titleOn : titleOff;
-      const warn = ready && warnWhenOn ? value : false;
+      const title = !ready
+        ? sessionId
+          ? '本会话尚未建立，稍后再试'
+          : '还没有会话，稍后再试'
+        : value
+          ? titleOn
+          : titleOff;
 
       return h(
         'div',
@@ -113,12 +114,7 @@ window.__ModuleLoader__.load({
             onClick,
             disabled: busy || !ready,
             title,
-            style: Object.assign(
-              {},
-              baseBtn,
-              busy || !ready ? { opacity: 0.55 } : null,
-              warn ? { borderColor: 'rgba(255,138,0,0.6)' } : null,
-            ),
+            style: Object.assign({}, baseBtn, busy || !ready ? { opacity: 0.55 } : null),
           },
           h('span', { style: { fontSize: 14 } }, icon),
           h('span', { style: { fontSize: 12, opacity: 0.85 } }, label),
@@ -127,31 +123,32 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function DevModeSwitch() {
+    function DevModeSwitch(props) {
+      const sessionId = props && props.sessionId;
       return h(
         'div',
         { style: { display: 'inline-flex', alignItems: 'center', gap: 8 } },
         h(SwitchButton, {
           apiPath: '/dsh-session-lock',
-          key: 'locked',
+          sessionId,
+          swKey: 'locked',
           iconOn: '🔒',
           iconOff: '🔓',
           labelOn: '禁止读其它会话',
           labelOff: '允许读其它会话',
           titleOn: '当前会话已锁定：不会读取其它会话的内容。点击允许。',
           titleOff: '当前会话已允许：可以读取其它会话。点击锁定。',
-          warnWhenOn: false,
         }),
         h(SwitchButton, {
           apiPath: '/dsh-quiet-run',
-          key: 'quiet',
+          sessionId,
+          swKey: 'quiet',
           iconOn: '🔇',
           iconOff: '🔊',
           labelOn: '静默运行',
           labelOff: '可见运行',
           titleOn: '静默运行：启动游戏或编辑器时会挪到屏幕外，不挡你、不抢焦点。点击改为可见。',
           titleOff: '可见运行：允许窗口出现在前台。点击改回静默。',
-          warnWhenOn: false,
         }),
       );
     }
