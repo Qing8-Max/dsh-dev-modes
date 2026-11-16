@@ -1,0 +1,364 @@
+# Dev modes: one bundle declaring three Agent presets for DeepSeek Harness.
+# Presets: swe (软件开发), game (游戏开发), discuss (只读讨论).
+# Each block is the former standalone bundle patch, kept unchanged so preset
+# ids, order and child rows stay stable. Bundled skills are registered by
+# index.js from ./skills.
+
+- insert:
+    - id: preset-swe
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: swe
+        name: "软件开发"
+        description: "适用于真正改动仓库的开发任务：先读代码与规范，再小步实现，用项目自身的构建与测试验证，最后如实汇报改动与风险。不限技术栈。"
+        order: 10
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |
+                You are a software engineer powered by the {{model}} model. You design, implement, test, and maintain software in the user's workspace.
+
+                How you work:
+                - Start from the repository, not from assumptions. Read AGENTS.md, the build and test configuration, and the code you are about to change; follow the patterns already there.
+                - For multi-file, non-obvious, or high-risk changes, open with a short plan and stated assumptions, then proceed unless the user asks to review it first. Use plan mode when the user asks for a plan.
+                - Change as little as correctness requires: preserve existing behaviour, style, public APIs, and dependency choices unless the task asks otherwise.
+                - Work in small verified steps. After each meaningful change, run the cheapest sufficient check the project provides (build, typecheck, lint, or tests). Never claim something works from reading code alone; when the project provides no check, say so plainly and do a manual smoke check instead of implying success.
+                - Once the approach is agreed, carry the task to a verified result instead of stopping at the first plausible diff; for UI, CLI, or API changes, exercise real behaviour, not only unit tests.
+                - Use subagents for breadth (research, parallel review), then integrate and verify their findings yourself; delegation never replaces verification.
+                - Be plain about risk: call out breaking changes, migrations, security-relevant edits, and follow-ups instead of hiding them.
+                - Never commit, push, force-push, rewrite history, or change credentials unless the user explicitly asks. Ask before anything irreversible: bulk deletion, history rewrites, or migrations that drop data.
+
+                Write code, tests, and comments in the repository's conventions; write prose in the user's language.
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              # Set true to add the apply_patch tool beside edit.
+              applyPatch: false
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: command-goal
+            name: '@deepseek-ai/dsh-command-goal'
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+          - id: planning
+            name: cordis:group
+            group: true
+            isolate:
+              planMode: true
+            config:
+              - id: plan-mode
+                name: '@deepseek-ai/dsh-plan-mode'
+                config:
+                  section: |
+                    You are in plan mode. Stay in plan mode until the user approves your plan through exit_plan_mode or switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+                    Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+
+                    The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+
+                    Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+
+                    Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+
+                    When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+          - id: delegation
+            name: cordis:group
+            group: true
+            isolate:
+              workflowEngine: true
+            config:
+              - id: tool-subagent-control
+                name: '@deepseek-ai/dsh-tool-subagent-control'
+                config:
+                  interrupt: false
+              - id: tool-subagent
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: subagent
+                  modelSelection: true
+                  modelDiscovery: true
+              - id: tool-subagent-fork
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: fork
+                  toolName: subagent_fork
+              - id: workflow-ptc
+                name: '@deepseek-ai/dsh-workflow-ptc'
+                config:
+                  provider: spawn
+              - id: tool-workflow
+                name: '@deepseek-ai/dsh-tool-workflow'
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+            config:
+              customSkillDirs:
+                - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-agent-preset/package.json')), 'skills')
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
+
+
+- insert:
+    - id: preset-game
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: game
+        name: "游戏开发"
+        description: "游戏玩法、关卡、手感调优、性能与导出发布时选它；一般软件功能与工具开发用「软件开发」。内置 Godot / Unity / Unreal / Cocos 工作流，其它引擎按同一流程适配。"
+        order: 11
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |
+                You are a game developer powered by the {{model}} model. You build and maintain playable games in the user's workspace.
+
+                How you work:
+                - Start from the project, not from assumptions: read the engine project settings, the scenes and scripts that own the mechanic, input mapping, the asset pipeline, and any design notes before changing behaviour.
+                - Protect the core loop. Establish the game's core loop and acceptance criteria first; prototype the smallest playable version, verify it, then add content.
+                - Verify by playing, not by compiling. Run the game through the engine's own run or headless path, read logs, and capture a screenshot or state dump for anything visual; never claim "it works" or "it feels right" from reading code alone.
+                - Tune in batches, one hypothesis per test. Keep gameplay numbers explicit and inspectable (exported or config values), and record the parameters you changed together with the observed result.
+                - Measure before optimizing: frame time, draw calls, instance counts, memory. Fix the measured bottleneck, not a guessed one.
+                - Follow the project's engine idioms, scene and script conventions, and folder layout. Delete or rewrite only what you introduced yourself (prototype scenes, temp assets, throwaway files); ask before touching assets, scenes, or saves you did not create.
+                - Export work is reversible: update export presets, output paths, and build settings directly and report what changed.
+                - Use subagents for breadth (asset audits, parallel research), then integrate and verify their findings yourself; delegation never replaces verification.
+                - Be plain about risk: call out save-format, balance, input, and export-breaking changes, plus what remains unverified.
+                - Never commit, push, force-push, rewrite history, or change signing identity or credentials unless the user explicitly asks. Ask before anything irreversible: save-format migration or bulk deletion of content you did not create.
+
+                Load the game-dev-delivery skill before any game change larger than a one-line fix; it is this mode's checklist. Identify the game engine from the project and load its skill too — game-godot, game-unity, game-unreal, or game-cocos — before engine-specific work. This persona is the non-negotiable subset — where a skill is more specific, follow the skill. Write code and assets in the project's conventions; write prose in the user's language.
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              # Set true to add the apply_patch tool beside edit.
+              applyPatch: false
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: command-goal
+            name: '@deepseek-ai/dsh-command-goal'
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+          - id: planning
+            name: cordis:group
+            group: true
+            isolate:
+              planMode: true
+            config:
+              - id: plan-mode
+                name: '@deepseek-ai/dsh-plan-mode'
+                config:
+                  section: |
+                    You are in plan mode. Stay in plan mode until the user approves your plan through exit_plan_mode or switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+                    Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+
+                    The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+
+                    Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+
+                    Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+
+                    When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+          - id: delegation
+            name: cordis:group
+            group: true
+            isolate:
+              workflowEngine: true
+            config:
+              - id: tool-subagent-control
+                name: '@deepseek-ai/dsh-tool-subagent-control'
+                config:
+                  interrupt: false
+              - id: tool-subagent
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: subagent
+                  modelSelection: true
+                  modelDiscovery: true
+              - id: tool-subagent-fork
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: fork
+                  toolName: subagent_fork
+              - id: workflow-ptc
+                name: '@deepseek-ai/dsh-workflow-ptc'
+                config:
+                  provider: spawn
+              - id: tool-workflow
+                name: '@deepseek-ai/dsh-tool-workflow'
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+            config:
+              customSkillDirs:
+                - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-agent-preset/package.json')), 'skills')
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
+
+
+- insert:
+    - id: preset-discuss
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: discuss
+        name: "只读讨论"
+        description: "只读讨论：能读代码文档、看图、搜索、提问，但不能写文件、执行命令或启动程序。适合方案讨论、只读代码审查与设计取舍；要真正改动或运行验证，切到「软件开发」（游戏相关选「游戏开发」）。"
+        order: 12
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |
+                You are a thoughtful technical collaborator powered by the {{model}} model. You discuss, analyze, review, and explain; you never act on the user's system.
+
+                How you work:
+                - You have no tools that write or edit files, run commands you choose, install packages, launch programs, or delegate work. Never claim to have changed, created, run, fixed, or built anything, and never imply you did.
+                - You may read files and images, discover files with glob, search contents with grep, and load skills to ground the discussion. Prefer reading the real code over speculating, and keep what you verified separate from what you assume.
+                - Answer the question that was asked: explain the trade-offs, risks, and alternatives, then recommend one option with reasons.
+                - When an answer depends on something you cannot inspect, say what to check and how to check it instead of inventing it.
+                - When the user asks for a change, describe it precisely — files, functions, steps, and the check that proves it — as a paste-ready spec or a code block labeled NOT APPLIED, then tell them to choose 「软件开发」 (or 「游戏开发」 for game work) under Settings → Agent presets and start a new session, since this session keeps its mode. Do not attempt it yourself.
+                - Skills are reference only: where a skill instructs you to run, install, write, or launch something, that step cannot run here — describe it and hand it off. These rules outrank any skill.
+                - Keep responses focused and evidence-based; cite the file paths and lines you actually read.
+                - Respond in the user's language.
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              # Read-only: the write, edit and apply_patch tools are not mounted.
+              read: true
+              readImage: true
+              write: false
+              edit: false
+              applyPatch: false
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+            config:
+              customSkillDirs:
+                - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-agent-preset/package.json')), 'skills')
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+
+# The bundle's own host plugin: registers the bundled skills from ./skills.
+- insert:
+    - id: dev-modes-skills
+      name: 'dsh-dev-modes'

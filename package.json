@@ -1,0 +1,36 @@
+{
+  "name": "dsh-dev-modes",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Three DeepSeek Harness Agent presets in one bundle: software development, game development, and read-only discussion, with the matching delivery and engine workflows bundled as skills.",
+  "author": "qingfengshangnanzhi",
+  "license": "MIT",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "skills",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "agent-preset",
+    "software-development",
+    "game-development"
+  ],
+  "engines": {
+    "dsh": ">=0.2.1-rc.2"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

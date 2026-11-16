@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Development modes",
+    "description": "Three Agent presets in one install: Software development (read the repository, plan, implement in small steps, verify with the project's own tooling), Game development (prototype first, verify by running it; Godot, Unity, Unreal, and Cocos workflows included), and Read-only discussion (read and search only, no file writes or commands). Ships the delivery and engine workflow skills."
+  }
+}
