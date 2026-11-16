@@ -360,7 +360,12 @@
           - id: tool-skill
             name: '@deepseek-ai/dsh-tool-skill'
 
-# The bundle's own host plugin: registers the bundled skills from ./skills.
+# 本包自带的宿主级插件：注册技能、会话隔离开关、静默运行开关。
+# 放在预设声明之外，所以对全部模式生效（含内置预设）。
 - insert:
     - id: dev-modes-skills
       name: 'dsh-dev-modes'
+    - id: dev-modes-session-lock
+      name: 'dsh-dev-modes/session-lock'
+    - id: dev-modes-quiet-run
+      name: 'dsh-dev-modes/quiet-run'

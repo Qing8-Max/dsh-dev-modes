@@ -1,17 +1,23 @@
 {
   "name": "dsh-dev-modes",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
-  "description": "Three DeepSeek Harness Agent presets in one bundle: software development, game development, and read-only discussion, with the matching delivery and engine workflows bundled as skills.",
+  "description": "Three DeepSeek Harness Agent presets in one bundle — plus the per-session isolation and quiet-run switches: software development, game development, and read-only discussion, with the matching delivery and engine workflows bundled as skills.",
   "author": "qingfengshangnanzhi",
   "license": "MIT",
   "exports": {
     ".": "./index.js",
+    "./client": "./client.js",
+    "./session-lock": "./session-lock/index.js",
+    "./quiet-run": "./quiet-run/index.js",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
   "files": [
     "index.js",
+    "client.js",
+    "session-lock",
+    "quiet-run",
     "cordis.patch.yml",
     "skills",
     "locale/*.json",
@@ -23,7 +29,9 @@
     "deepseek-harness",
     "agent-preset",
     "software-development",
-    "game-development"
+    "game-development",
+    "quiet",
+    "session-isolation"
   ],
   "engines": {
     "dsh": ">=0.2.1-rc.2"
@@ -31,6 +39,13 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
     }
   }
 }

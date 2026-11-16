@@ -1,99 +1,109 @@
 {
-  "format": 1,
-  "title": {
-    "en": "Dev modes",
-    "zh": "开发模式合集"
-  },
-  "description": {
-    "en": "DeepSeek Harness Agent presets and workflow skills for software and game development.",
-    "zh": "面向软件开发与游戏开发的 DeepSeek Harness Agent 预设与工作流技能。"
-  },
-  "metadata": {
-    "categories": {
-      "development": {
-        "title": {
-          "en": "Development",
-          "zh": "开发"
-        }
-      },
-      "presets": {
-        "title": {
-          "en": "Agent presets",
-          "zh": "Agent 预设"
-        }
-      }
-    },
-    "labels": {
-      "agent-preset": {
-        "title": {
-          "en": "Agent presets",
-          "zh": "Agent 预设"
-        }
-      },
-      "game-dev": {
-        "title": {
-          "en": "Game development",
-          "zh": "游戏开发"
-        }
-      }
-    },
-    "sortKeys": {
-      "presets": {
-        "title": {
-          "en": "Included presets",
-          "zh": "包含预设数"
-        },
-        "order": "desc"
-      }
-    }
-  },
-  "plugins": [
-    {
-      "name": "dsh-dev-modes",
-      "title": {
-        "en": "Development modes",
-        "zh": "开发模式合集"
-      },
-      "description": {
-        "en": "One install adds three Agent presets: Software development (read the repository, plan, implement in small steps, verify with the project's own tooling), Game development (prototype first, verify by running it; Godot, Unity, Unreal, and Cocos workflows included), and Read-only discussion (read and search only, no file writes or commands). The delivery and engine workflow skills ship with the bundle.",
-        "zh": "一次安装新增三个 Agent 预设：软件开发（先读仓库与规范、规划后小步实现、用项目自身的构建与测试验证）、游戏开发（原型先行、真实运行验证手感与性能，内置 Godot / Unity / Unreal / Cocos 工作流）、只读讨论（能读能搜，不能写文件或执行命令）。交付流程与各引擎工作流技能随包附带。"
-      },
-      "icon": "icon.svg",
-      "author": "qingfengshangnanzhi",
-      "homepage": "https://www.npmjs.com/package/dsh-dev-modes",
-      "metadata": {
-        "category": "development",
-        "keywords": [
-          "agent-preset",
-          "software-development",
-          "game-development",
-          "godot",
-          "unity",
-          "unreal",
-          "cocos",
-          "code-review",
-          "read-only"
-        ],
-        "labels": [
-          "agent-preset",
-          "game-dev"
-        ],
-        "sortKeys": {
-          "presets": 3
-        }
-      },
-      "versions": [
-        {
-          "version": "1.0.0",
-          "publishTimestamp": 1794822235,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": ">=0.2.1-rc.2"
-          }
-        }
-      ]
-    }
-  ]
+    "format":  1,
+    "title":  {
+                  "en":  "Dev modes",
+                  "zh":  "开发模式合集"
+              },
+    "description":  {
+                        "en":  "DeepSeek Harness Agent presets and workflow skills for software and game development.",
+                        "zh":  "面向软件开发与游戏开发的 DeepSeek Harness Agent 预设与工作流技能。"
+                    },
+    "metadata":  {
+                     "categories":  {
+                                        "development":  {
+                                                            "title":  {
+                                                                          "en":  "Development",
+                                                                          "zh":  "开发"
+                                                                      }
+                                                        },
+                                        "presets":  {
+                                                        "title":  {
+                                                                      "en":  "Agent presets",
+                                                                      "zh":  "Agent 预设"
+                                                                  }
+                                                    }
+                                    },
+                     "labels":  {
+                                    "agent-preset":  {
+                                                         "title":  {
+                                                                       "en":  "Agent presets",
+                                                                       "zh":  "Agent 预设"
+                                                                   }
+                                                     },
+                                    "game-dev":  {
+                                                     "title":  {
+                                                                   "en":  "Game development",
+                                                                   "zh":  "游戏开发"
+                                                               }
+                                                 }
+                                },
+                     "sortKeys":  {
+                                      "presets":  {
+                                                      "title":  {
+                                                                    "en":  "Included presets",
+                                                                    "zh":  "包含预设数"
+                                                                },
+                                                      "order":  "desc"
+                                                  }
+                                  }
+                 },
+    "plugins":  [
+                    {
+                        "name":  "dsh-dev-modes",
+                        "title":  {
+                                      "en":  "Development modes",
+                                      "zh":  "开发模式合集"
+                                  },
+                        "description":  {
+                                            "en":  "One install adds three Agent presets: Software development (read the repository, plan, implement in small steps, verify with the project\u0027s own tooling), Game development (prototype first, verify by running it; Godot, Unity, Unreal, and Cocos workflows included), and Read-only discussion (read and search only, no file writes or commands). The delivery and engine workflow skills ship with the bundle.",
+                                            "zh":  "一次安装新增三个 Agent 预设：软件开发（先读仓库与规范、规划后小步实现、用项目自身的构建与测试验证）、游戏开发（原型先行、真实运行验证手感与性能，内置 Godot / Unity / Unreal / Cocos 工作流）、只读讨论（能读能搜，不能写文件或执行命令）。交付流程与各引擎工作流技能随包附带。"
+                                        },
+                        "icon":  "icon.svg",
+                        "author":  "qingfengshangnanzhi",
+                        "homepage":  "https://www.npmjs.com/package/dsh-dev-modes",
+                        "metadata":  {
+                                         "category":  "development",
+                                         "keywords":  [
+                                                          "agent-preset",
+                                                          "software-development",
+                                                          "game-development",
+                                                          "godot",
+                                                          "unity",
+                                                          "unreal",
+                                                          "cocos",
+                                                          "code-review",
+                                                          "read-only"
+                                                      ],
+                                         "labels":  [
+                                                        "agent-preset",
+                                                        "game-dev"
+                                                    ],
+                                         "sortKeys":  {
+                                                          "presets":  3
+                                                      }
+                                     },
+                        "versions":  [
+                                         {
+                                             "version":  "1.1.0",
+                                             "publishTimestamp":  1794828513,
+                                             "source":  {
+                                                            "type":  "npm"
+                                                        },
+                                             "engines":  {
+                                                             "dsh":  "\u003e=0.2.1-rc.2"
+                                                         }
+                                         },
+                                         {
+                                             "version":  "1.0.0",
+                                             "publishTimestamp":  1794822235,
+                                             "source":  {
+                                                            "type":  "npm"
+                                                        },
+                                             "engines":  {
+                                                             "dsh":  "\u003e=0.2.1-rc.2"
+                                                         }
+                                         }
+                                     ]
+                    }
+                ]
 }
