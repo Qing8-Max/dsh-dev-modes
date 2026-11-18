@@ -16,6 +16,22 @@ import { fileURLToPath } from 'node:url';
 const HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 const STORE_DIR = path.join(HOME, 'storages', 'dsh-quiet-run');
 const STORE_FILE = path.join(STORE_DIR, 'state.json');
+const LOG_FILE = path.join(STORE_DIR, 'requests.log');
+
+/** 记一行请求日志：排查"点了开关但没生效"时，能看清前端到底传了哪个会话。 */
+function logRequest(entry) {
+  try {
+    fs.mkdirSync(STORE_DIR, { recursive: true });
+    fs.appendFileSync(LOG_FILE, JSON.stringify({ t: Date.now(), ...entry }) + '\n', 'utf8');
+    const stat = fs.statSync(LOG_FILE);
+    if (stat.size > 200 * 1024) {
+      const lines = fs.readFileSync(LOG_FILE, 'utf8').trim().split('\n').slice(-200);
+      fs.writeFileSync(LOG_FILE, lines.join('\n') + '\n', 'utf8');
+    }
+  } catch {
+    /* 日志失败不影响功能 */
+  }
+}
 
 /** 与包一起分发的窗口搬运脚本（绝对路径，写进规则里让模型直接可用）。 */
 const HELPER = path.join(
@@ -238,6 +254,7 @@ export function apply(ctx) {
           const url = new URL(req.url || '/', 'http://127.0.0.1');
           const asked = url.searchParams.get('sessionId');
           const sessionId = asked || activeSessionId;
+          logRequest({ kind: 'state', asked: asked ?? null, resolved: sessionId, fromActive: !asked });
           if (!sessionId) {
             sendJson(res, 200, { sessionId: null, quiet: true, ready: false, diag });
             return;
@@ -262,6 +279,13 @@ export function apply(ctx) {
           }
           const body = await readJsonBody(req);
           const sessionId = body.sessionId || activeSessionId;
+          logRequest({
+            kind: 'set',
+            bodySession: body.sessionId ?? null,
+            resolved: sessionId,
+            fromActive: !body.sessionId,
+            value: body.quiet,
+          });
           if (!sessionId) {
             sendJson(res, 400, { error: 'no active session yet' });
             return;
@@ -272,9 +296,28 @@ export function apply(ctx) {
         },
       });
 
+      const dumpLog = c.webServer.register({
+        kind: 'exact',
+        path: '/dsh-quiet-run/log',
+        handler: async (req, res) => {
+          let lines = [];
+          try {
+            lines = fs.readFileSync(LOG_FILE, 'utf8').trim().split('\n').slice(-60);
+          } catch {
+            lines = [];
+          }
+          res.writeHead(200, {
+            'content-type': 'application/json; charset=utf-8',
+            'cache-control': 'no-store',
+          });
+          res.end(JSON.stringify({ activeSessionId, entries: lines }));
+        },
+      });
+
       return () => {
         state();
         toggle();
+        dumpLog();
       };
     });
   });
