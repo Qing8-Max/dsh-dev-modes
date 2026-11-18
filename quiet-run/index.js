@@ -1,22 +1,28 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 
 /**
  * 每个会话独立的「静默运行」开关（并入 dsh-dev-modes）。
  *
- * 静默（默认）：启动任何 GUI 都必须挪到屏幕外或改用无窗口方式，不挡用户、不抢焦点。
+ * 静默（默认）：启动任何 GUI 都必须立刻挪到屏幕外，不挡用户、不抢焦点。
  * 可见：用户允许窗口出现在前台。
  *
  * 存储：$DSH_HOME/storages/dsh-quiet-run/state.json
  *   { "<sessionId>": { "quiet": true, "updatedAt": 1700000000000 } }
- *
- * 目录名沿用独立插件时期的名字，升级后原有设置继续生效。
  */
 
 const HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 const STORE_DIR = path.join(HOME, 'storages', 'dsh-quiet-run');
 const STORE_FILE = path.join(STORE_DIR, 'state.json');
+
+/** 与包一起分发的窗口搬运脚本（绝对路径，写进规则里让模型直接可用）。 */
+const HELPER = path.join(
+  path.dirname(path.dirname(fileURLToPath(import.meta.url))),
+  'helpers',
+  'window-quiet.ps1',
+);
 
 const QUIET_RULE = [
   '## 静默运行（本会话已开启）',
@@ -24,12 +30,16 @@ const QUIET_RULE = [
   '用户可能正在看视频或打字。启动任何 GUI 都不得挡住他、不得抢走焦点。',
   '',
   '- **优先无窗口**：构建、测试、lint、类型检查、逻辑验证一律用无界面方式（headless / batchmode / 纯命令行）',
-  '- **必须开窗口**（游戏窗口、编辑器、浏览器预览）时：启动后立刻移到屏幕外（例如坐标 10000,10000），或用最小化启动；**禁止全屏**',
-  '- 不要主动激活、置顶或聚焦任何新窗口；不要调用会抓取全屏的截图方式',
-  '- 需要用户用肉眼确认效果时，先把窗口移回可见区域之前**先问他**，得到同意再显示',
-  '- 预计超过 1 分钟的构建或测试（首次导入、cook、导出、编译大项目）先说明再跑',
-  '',
-  '如果你无法保证窗口不会出现在前台，就改用无窗口方式，或先问用户。',
+  '- **启动 GUI 之后必须立刻把它移出可视区**，别只说不做。命令：',
+  '  ```',
+  `  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${HELPER}" -Action hide -ProcessId <刚启动的进程号>`,
+  `  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${HELPER}" -Action hide -Title "<窗口标题片段>"`,
+  `  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${HELPER}" -Action list   # 查当前可见窗口`,
+  '  ```',
+  '- 用户要用肉眼看效果时：先问，得到同意后 `-Action show` 还原。用完记得再移出去。',
+  '- 不要全屏；不要主动激活、置顶、聚焦窗口。',
+  '- 预计超过 1 分钟的构建或测试（首次导入、cook、导出、编译大项目）先说明再跑。',
+  '- `hide` 失败（例如全屏独占窗口）时**如实告诉用户"这个窗口挪不走"**，不要假装已经藏起来。',
 ].join('\n');
 
 const VISIBLE_RULE = [

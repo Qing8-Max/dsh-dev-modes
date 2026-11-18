@@ -25,6 +25,17 @@ whenToUse: 项目有 project.godot 或 .tscn/.gd 文件，需要跑场景、改�
 - `godot_run_project` 可能接管用户已打开的实例并返回 `external:true`：此时**不要杀进程**。让用户在编辑器按 F8，或对子进程运行用 `godot_command` 的 `eval get_tree().quit()`。
 - `eval` 只在非 debug 实例可用；需要多帧调用栈时才用 `debug:true`。
 
+## 静默运行（开关开启时）
+
+系统提示里有「静默运行」段落时，窗口不许挡用户。启动 GUI 后**立刻**执行，别只说不做：
+
+- Godot 内部（首选，无闪烁）：
+  `godot_command eval "DisplayServer.window_set_position(Vector2i(20000, 20000))"`
+- 系统层面（也适用于编辑器、浏览器预览）：
+  `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "<包内 helpers/window-quiet.ps1>" -Action hide -ProcessId <PID>`
+- 用户要用肉眼看效果：先问，同意后 `-Action show` 还原，用完再移出去。
+- 全屏独占（`window_mode = fullscreen`）的窗口挪不走：如实说明，或先改成窗口模式再跑。
+
 ## 导出
 
 - 先确认 `export_presets.cfg` 里已有对应预设、导出模板已安装，再 `godot_export_project`；缺预设就先建预设，不要盲调导出。

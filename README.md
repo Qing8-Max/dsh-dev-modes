@@ -36,7 +36,27 @@ $DSH_HOME/storages/dsh-session-lock/policies.json
 $DSH_HOME/storages/dsh-quiet-run/state.json
 ```
 
-> 这两个是**提示词级约束**，不是强制拦截：模型被告知规则并遵守，但宿主不会物理阻止。窗口挪出屏幕后仍占用 GPU/CPU。
+> 这两个是**提示词级约束**，不是强制拦截：模型被告知规则并遵守，但宿主不会物理阻止。
+
+## 静默运行怎么真正生效
+
+光有规则还不够——窗口得有人去搬。本包内置 `helpers/window-quiet.ps1`：
+
+```powershell
+# 列出当前可见窗口（句柄|PID|坐标|标题）
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File helpers\window-quiet.ps1 -Action list
+
+# 按进程号或标题把窗口移到 (20000,20000)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File helpers\window-quiet.ps1 -Action hide -ProcessId 12345
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File helpers\window-quiet.ps1 -Action hide -Title "记事本"
+
+# 全部还原到原坐标
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File helpers\window-quiet.ps1 -Action show
+```
+
+静默规则里写的是**这个脚本的绝对路径**，所以模型拿到的是可直接执行的命令，而不是一句"请把窗口移走"的空话。Godot 项目另有更快的做法：`godot_command eval "DisplayServer.window_set_position(Vector2i(20000, 20000))"`。
+
+局限：全屏独占的窗口搬不动（Windows 限制），脚本会返回失败——这时模型应当如实告诉你，而不是假装藏好了。
 
 ## 安装
 
