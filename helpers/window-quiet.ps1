@@ -29,6 +29,7 @@ param(
 
   [string]$Title,
   [int]$ProcessId = 0,
+  [int]$WaitSeconds = 10,
   [int]$X = 20000,
   [int]$Y = 20000
 )
@@ -138,33 +139,68 @@ switch ($Action) {
   }
 
   'hide' {
-    $matched = $all
-    if ($ProcessId -gt 0) { $matched = $matched | Where-Object { $_.pid -eq $ProcessId } }
-    if ($Title) { $matched = $matched | Where-Object { $_.title -like "*$Title*" } }
-    if (-not $matched) {
-      "未匹配到窗口（Title='$Title' ProcessId=$ProcessId）" | Write-Error
+    # 打包应用（如 Win11 记事本、部分商店应用）里，Start-Process 拿到的 PID
+    # 常常不是真正拥有窗口的那个进程，所以这里把子进程也纳入匹配，
+    # 并且轮询等待窗口出现（GUI 启动需要时间）。
+    $candidatePids = New-Object System.Collections.Generic.HashSet[int]
+    if ($ProcessId -gt 0) {
+      [void]$candidatePids.Add($ProcessId)
+      try {
+        $children = Get-CimInstance Win32_Process -Filter "ParentProcessId = $ProcessId" -ErrorAction SilentlyContinue |
+          Select-Object -ExpandProperty ProcessId
+        foreach ($childPid in @($children)) { [void]$candidatePids.Add([int]$childPid) }
+      } catch {
+        # 拿不到进程树就只按原 PID 匹配
+      }
+    }
+
+    $matched = @()
+    $deadline = (Get-Date).AddSeconds([Math]::Max(0, $WaitSeconds))
+    while ($true) {
+      $snapshot = [DshWin]::List() | ForEach-Object {
+        $p = $_ -split '\|', 7
+        [pscustomobject]@{
+          handle = [int64]$p[0]; pid = [int]$p[1]
+          left = [int]$p[2]; top = [int]$p[3]; width = [int]$p[4]; height = [int]$p[5]
+          title = $p[6]
+        }
+      }
+      $matched = @($snapshot)
+      if ($candidatePids.Count -gt 0) { $matched = @($matched | Where-Object { $candidatePids.Contains([int]$_.pid) }) }
+      if ($Title) { $matched = @($matched | Where-Object { $_.title -like "*$Title*" }) }
+      if ($matched.Count -gt 0) { break }
+      if ((Get-Date) -ge $deadline) { break }
+      Start-Sleep -Milliseconds 250
+    }
+
+    if ($matched.Count -eq 0) {
+      "未匹配到窗口（Title='$Title' ProcessId=$ProcessId，已等待 $WaitSeconds 秒）" | Write-Error
       exit 1
     }
 
     $state = @(Read-State)
     foreach ($w in $matched) {
+      # 已经在屏幕外的不要重复记，避免 -Action show 时坐标被覆盖成 20000
+      $alreadyOut = ($w.left -ge 10000) -or ($w.top -ge 10000)
       $ok = [DshWin]::Move([IntPtr]$w.handle, $X, $Y, $w.width, $w.height)
       if (-not $ok) {
         "移动失败（可能是全屏独占窗口）：$($w.title)"
         continue
       }
-      $state += [pscustomobject]@{
-        handle = $w.handle; pid = $w.pid; title = $w.title
-        left = $w.left; top = $w.top; width = $w.width; height = $w.height
+      if (-not $alreadyOut) {
+        $state += [pscustomobject]@{
+          handle = $w.handle; pid = $w.pid; title = $w.title
+          left = $w.left; top = $w.top; width = $w.width; height = $w.height
+        }
       }
-      "已移出可视区：$($w.title) → ($X,$Y)"
+      "已移出可视区：$($w.title) [PID $($w.pid)] → ($X,$Y)"
     }
     Write-State $state
     break
   }
 
   'show' {
-    $state = Read-State
+    $state = @(Read-State)
     if (-not $state -or $state.Count -eq 0) {
       '没有记录到需要还原的窗口'
       break
