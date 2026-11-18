@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -34,11 +35,117 @@ function logRequest(entry) {
 }
 
 /** 与包一起分发的窗口搬运脚本（绝对路径，写进规则里让模型直接可用）。 */
-const HELPER = path.join(
-  path.dirname(path.dirname(fileURLToPath(import.meta.url))),
-  'helpers',
-  'window-quiet.ps1',
-);
+const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const HELPER = path.join(PKG_ROOT, 'helpers', 'window-quiet.ps1');
+const WATCHER = path.join(PKG_ROOT, 'helpers', 'window-quiet-watch.ps1');
+const WATCHER_PID_FILE = path.join(STORE_DIR, 'watcher.pid');
+/**
+ * 给后台监视器看的标志文件：宿主进程里读不到 web 端口，所以不让 watcher 走 HTTP，
+ * 直接由插件在每次读写开关时落一个 { quiet } 文件，watcher 轮询它即可。
+ */
+const WATCHER_FLAG_FILE = path.join(STORE_DIR, 'watch-flag.json');
+const WATCHER_DEBUG_FILE = path.join(STORE_DIR, 'watcher-debug.log');
+
+function appendWatcherDebug(text) {
+  try {
+    fs.mkdirSync(STORE_DIR, { recursive: true });
+    fs.appendFileSync(WATCHER_DEBUG_FILE, `${new Date().toISOString()} ${text}\n`, 'utf8');
+  } catch {
+    /* ignore */
+  }
+}
+
+function writeWatchFlag(sessionId, quiet) {
+  try {
+    fs.mkdirSync(STORE_DIR, { recursive: true });
+    fs.writeFileSync(
+      WATCHER_FLAG_FILE,
+      JSON.stringify({ sessionId: sessionId ?? null, quiet: Boolean(quiet), t: Date.now() }),
+      'utf8',
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * 拉起后台监视器：静默开启时自动把新窗口移出可视区。
+ *
+ * 为什么要有它：只靠提示词让模型"记得移窗口"不可靠——模型可能没照做、
+ * 命令可能失败、执行的人可能根本不是本插件所在的会话。监视器由插件自己
+ * 启动，直接读开关状态，不依赖任何模型决策。
+ */
+function ensureWatcher() {
+  try {
+    // 已有监视器在跑就复用，避免热重载后堆出一堆进程
+    try {
+      const existing = parseInt(fs.readFileSync(WATCHER_PID_FILE, 'utf8').trim(), 10);
+      if (existing > 0) {
+        process.kill(existing, 0);
+        return existing;
+      }
+    } catch {
+      /* 没有旧进程或已退出 */
+    }
+
+    if (!fs.existsSync(WATCHER)) return null;
+
+    const child = spawn(
+      'cmd.exe',
+      [
+        '/c',
+        'start',
+        '""',
+        '/min',
+        'powershell.exe',
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        WATCHER,
+        '-FlagFile',
+        WATCHER_FLAG_FILE,
+      ],
+      { detached: true, stdio: 'ignore', windowsHide: true },
+    );
+
+    // 启动失败时把原因写下来，否则只能看到一个永远不起作用的开关
+    child.on('error', (err) => {
+      diag.watcherError = String((err && err.message) || err);
+      appendWatcherDebug('spawn error: ' + diag.watcherError);
+    });
+    child.on('exit', (code) => {
+      appendWatcherDebug('cmd launcher exited: ' + code);
+    });
+    child.unref();
+    try {
+      fs.mkdirSync(STORE_DIR, { recursive: true });
+      fs.writeFileSync(WATCHER_PID_FILE, String(child.pid), 'utf8');
+    } catch {
+      /* ignore */
+    }
+    return child.pid;
+  } catch (err) {
+    noteError('ensureWatcher', err);
+    return null;
+  }
+}
+
+function stopWatcher() {
+  try {
+    const pid = parseInt(fs.readFileSync(WATCHER_PID_FILE, 'utf8').trim(), 10);
+    if (pid > 0) {
+      try {
+        process.kill(pid);
+      } catch {
+        /* ignore */
+      }
+    }
+    fs.rmSync(WATCHER_PID_FILE, { force: true });
+  } catch {
+    /* ignore */
+  }
+}
 
 const QUIET_RULE = [
   '## 静默运行（本会话已开启）',
@@ -194,6 +301,11 @@ function readJsonBody(req) {
 export function apply(ctx) {
   load();
 
+  // 后台监视器：静默开启时自动搬走新窗口，不依赖模型是否照做。
+  // 由脚本自己保证单实例，插件这边只管确保有人被拉起（热重载不会堆进程）。
+  const watcherPid = ensureWatcher();
+  diag.watcherPid = watcherPid;
+
   const register = (agent) => {
     try {
       const sessionId = sessionIdOf(agent);
@@ -254,6 +366,8 @@ export function apply(ctx) {
           const url = new URL(req.url || '/', 'http://127.0.0.1');
           const asked = url.searchParams.get('sessionId');
           const sessionId = asked || activeSessionId;
+          const quietNow = sessionId ? isQuiet(sessionId) : true;
+          if (sessionId) writeWatchFlag(sessionId, quietNow);
           logRequest({ kind: 'state', asked: asked ?? null, resolved: sessionId, fromActive: !asked });
           if (!sessionId) {
             sendJson(res, 200, { sessionId: null, quiet: true, ready: false, diag });
@@ -292,6 +406,7 @@ export function apply(ctx) {
           }
           const quiet = Boolean(body.quiet);
           const saved = setQuiet(sessionId, quiet);
+          writeWatchFlag(sessionId, quiet);
           sendJson(res, 200, { sessionId, quiet, saved });
         },
       });
