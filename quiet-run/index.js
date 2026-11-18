@@ -56,36 +56,24 @@ function appendWatcherDebug(text) {
 }
 
 /**
- * 哪个会话"正在被看"：每次前端轮询 /state 就记一下。
+ * 后台监视器该不该动手，由「最后一次明确点开关的会话」决定。
  *
- * 早先直接把标志写成"这次请求的会话的 quiet"，问题是多开窗口时会互相覆盖——
- * A 窗口开了静默，B 窗口（关着）下一秒轮询就把它盖回 false，表现为"开了不生效"。
- * 现在改成：最近 15 秒内被轮询过、且自己开着静默的会话，只要有一个，就算静默生效。
+ * 试过两种信号都不对：
+ * - 用"这次轮询的会话"：多开窗口时互相覆盖，A 开了静默被 B 盖回关闭。
+ * - 用"最近轮询过的任意会话，有一个开着就算数"：A 窗口遗留的开启会强行让
+ *   别的窗口也静默，与 B 窗口显示的「可见运行」矛盾。
+ * 现在改成只看用户最后一次点开关的那一下——所见即所得。
  */
-const recentPolls = new Map();
-const RECENT_WINDOW_MS = 15000;
+let lastToggle = null;
 
-function notePoll(sessionId) {
-  if (sessionId) recentPolls.set(sessionId, Date.now());
-}
-
-/** 依据"最近仍在轮询的会话"重算静默状态，并落给后台监视器。 */
+/** 依据「最后一次点开关的会话」重算静默状态，并落给后台监视器。 */
 function syncWatchFlag() {
-  const now = Date.now();
-  let quiet = false;
-  let winner = null;
-  for (const [sessionId, at] of recentPolls) {
-    if (now - at > RECENT_WINDOW_MS) {
-      recentPolls.delete(sessionId);
-      continue;
-    }
-    if (isQuiet(sessionId)) {
-      quiet = true;
-      winner = sessionId;
-      break;
-    }
+  if (!lastToggle) {
+    // 还没有人点过：按默认（静默）处理
+    writeWatchFlag(null, true);
+    return;
   }
-  writeWatchFlag(winner, quiet);
+  writeWatchFlag(lastToggle, isQuiet(lastToggle));
 }
 
 function writeWatchFlag(sessionId, quiet) {
@@ -400,8 +388,6 @@ export function apply(ctx) {
           const asked = url.searchParams.get('sessionId');
           const sessionId = asked || activeSessionId;
           const quietNow = sessionId ? isQuiet(sessionId) : true;
-          notePoll(sessionId);
-          syncWatchFlag();
           logRequest({ kind: 'state', asked: asked ?? null, resolved: sessionId, fromActive: !asked });
           if (!sessionId) {
             sendJson(res, 200, { sessionId: null, quiet: true, ready: false, diag });
@@ -440,7 +426,7 @@ export function apply(ctx) {
           }
           const quiet = Boolean(body.quiet);
           const saved = setQuiet(sessionId, quiet);
-          notePoll(sessionId);
+          lastToggle = sessionId;
           syncWatchFlag();
           sendJson(res, 200, { sessionId, quiet, saved });
         },
