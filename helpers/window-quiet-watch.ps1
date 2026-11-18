@@ -18,7 +18,7 @@
 param(
   [string]$FlagFile,
   [string]$StateUrl,
-  [int]$IntervalMs = 700,
+  [int]$IntervalMs = 120,
   [int]$X = 20000,
   [int]$Y = 20000
 )
@@ -118,12 +118,21 @@ function Get-WindowSnapshot {
   return $rows
 }
 
+# 进程名缓存：每轮都 Get-Process 太慢，缓起来才能压到百毫秒级响应
+$procNameCache = @{}
+
+function Get-ProcName([int]$procId) {
+  if ($procNameCache.ContainsKey($procId)) { return $procNameCache[$procId] }
+  $name = ''
+  try { $name = (Get-Process -Id $procId -ErrorAction Stop).ProcessName } catch { $name = '' }
+  $procNameCache[$procId] = $name
+  return $name
+}
+
 function Should-Skip($w) {
   if ($skipClasses -contains $w.klass) { return $true }
-  try {
-    $proc = Get-Process -Id $w.pid -ErrorAction Stop
-    if ($skipProcessNames -contains $proc.ProcessName) { return $true }
-  } catch { }
+  $name = Get-ProcName $w.pid
+  if ($name -and ($skipProcessNames -contains $name)) { return $true }
   # 窗口比 40x40 小的多为工具提示类，不处理
   if ($w.width -lt 40 -or $w.height -lt 40) { return $true }
   return $false
@@ -216,5 +225,6 @@ while ($true) {
 
   # 忘掉已关闭的窗口，避免集合无限增长
   $known = $currentHandles
+  if ($procNameCache.Count -gt 400) { $procNameCache = @{} }
   Start-Sleep -Milliseconds $IntervalMs
 }
