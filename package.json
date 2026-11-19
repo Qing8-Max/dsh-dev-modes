@@ -48,5 +48,13 @@
         "@deepseek-ai/dsh-client-ui-conversation"
       ]
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Qing8-Max/dsh-dev-modes.git"
+  },
+  "homepage": "https://github.com/Qing8-Max/dsh-dev-modes#readme",
+  "bugs": {
+    "url": "https://github.com/Qing8-Max/dsh-dev-modes/issues"
   }
 }
