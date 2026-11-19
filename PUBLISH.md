@@ -71,11 +71,11 @@ npm publish --access public
 
 ## 校验索引
 
-改完索引后，用 DSH 自带校验器验证（这台机器上可直接跑）：
+改完索引后，用 DSH 自带校验器验证（在本仓库根目录可直接跑）：
 
 ```powershell
 $env:ELECTRON_RUN_AS_NODE = '1'
-& $env:DSH_NODE_EXECUTABLE C:\Users\huang\dsh-modes\dev-modes\dist\validate-market-index.mjs <索引文件> [索引URL]
+& $env:DSH_NODE_EXECUTABLE .\dist\validate-market-index.mjs <索引文件> [索引URL]
 ```
 
 输出 `ok: true` 与每个版本的安装参数即为合法；否则会报 `$.plugins[0].versions[0].version ...` 这类带 JSON 路径的错误。
