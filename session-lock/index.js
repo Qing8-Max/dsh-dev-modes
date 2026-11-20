@@ -215,10 +215,35 @@ export function apply(ctx) {
         res.end(JSON.stringify(obj));
       };
 
+      /**
+       * 宿主认证：这两个路由会读出/改写某个会话的隔离状态，必须和 DSH 自己的 API 用同一道闸。
+       * `connection.requestRejection` 同时做 Host/Origin 检查与浏览器登录校验：
+       * 没有登录凭据、或来自别的站点，都拿不到 401/403 以外的结果。
+       * 拿不到这道闸（没有 connection 服务）时按失败关闭处理，不做"看来源地址"之类的猜测。
+       * @returns true 表示已经拒绝并写完响应，调用方直接 return。
+       */
+      const rejectedByHost = (req, res) => {
+        let rejection;
+        try {
+          const connection = c.get('connection');
+          if (typeof connection?.requestRejection !== 'function') throw new Error('admission unavailable');
+          rejection = connection.requestRejection(req);
+        } catch {
+          sendJson(res, 503, { error: 'host admission unavailable' });
+          return true;
+        }
+        if (rejection !== undefined) {
+          sendJson(res, rejection === 401 ? 401 : 403, { error: 'unauthenticated' });
+          return true;
+        }
+        return false;
+      };
+
       const state = c.webServer.register({
         kind: 'exact',
         path: '/dsh-session-lock/state',
         handler: async (req, res) => {
+          if (rejectedByHost(req, res)) return;
           const url = new URL(req.url || '/', 'http://127.0.0.1');
           const asked = url.searchParams.get('sessionId');
           const sessionId = asked || activeSessionId;
@@ -240,6 +265,7 @@ export function apply(ctx) {
         kind: 'exact',
         path: '/dsh-session-lock/set',
         handler: async (req, res) => {
+          if (rejectedByHost(req, res)) return;
           if (req.method !== 'POST') {
             sendJson(res, 405, { error: 'POST only' });
             return;

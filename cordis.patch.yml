@@ -381,3 +381,5 @@
       name: 'dsh-dev-modes/session-lock'
     - id: dev-modes-quiet-run
       name: 'dsh-dev-modes/quiet-run'
+    - id: dev-modes-session-delete
+      name: 'dsh-dev-modes/session-delete'

@@ -1,6 +1,6 @@
 {
   "name": "dsh-dev-modes",
-  "version": "1.1.14",
+  "version": "1.1.16",
   "type": "module",
   "description": "Three DeepSeek Harness Agent presets in one bundle — plus the per-session isolation and quiet-run switches: software development, game development, and read-only discussion, with the matching delivery and engine workflows bundled as skills.",
   "author": "qingfengshangnanzhi",
@@ -10,6 +10,7 @@
     "./client": "./client.js",
     "./session-lock": "./session-lock/index.js",
     "./quiet-run": "./quiet-run/index.js",
+    "./session-delete": "./session-delete/index.js",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
@@ -19,6 +20,7 @@
     "session-lock",
     "helpers",
     "quiet-run",
+    "session-delete",
     "cordis.patch.yml",
     "skills",
     "locale/*.json",
@@ -48,13 +50,5 @@
         "@deepseek-ai/dsh-client-ui-conversation"
       ]
     }
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Qing8-Max/dsh-dev-modes.git"
-  },
-  "homepage": "https://github.com/Qing8-Max/dsh-dev-modes#readme",
-  "bugs": {
-    "url": "https://github.com/Qing8-Max/dsh-dev-modes/issues"
   }
 }

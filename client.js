@@ -153,6 +153,30 @@ window.__ModuleLoader__.load({
       );
     }
 
+    /** 删除会话：移到隔离目录（可恢复），不做物理删除。 */
+    async function deleteSession(sessionId) {
+      const ok = window.confirm(
+        '删除这个会话？\n\n' +
+          '它会被移到 .dsh\\sessions-trash\\<时间戳>\\，可以从那里恢复；\n' +
+          '确认不要了再手动清理该目录。',
+      );
+      if (!ok) return;
+      try {
+        const r = await postJson('/dsh-session-delete/delete', { sessionId });
+        if (!r || r.ok !== true) {
+          window.alert('删除失败：' + ((r && r.error) || '未知错误'));
+          return;
+        }
+        window.alert(
+          r.removed > 0
+            ? '已移到隔离目录：\n' + (r.trashPath || '') + '\n\n刷新页面后该会话就会从列表消失。'
+            : '没有找到这个会话的目录（可能已经删过了）。',
+        );
+      } catch (e) {
+        window.alert('删除失败：' + ((e && e.message) || String(e)));
+      }
+    }
+
     return {
       inject: ['slots'],
       apply(ctx) {
@@ -162,6 +186,29 @@ window.__ModuleLoader__.load({
             DevModeSwitch,
           ),
         );
+
+        // 会话右键菜单：删除会话
+        ctx.inject(['contextMenus'], (c) => {
+          c.effect(() =>
+            c.contextMenus.register({
+              id: 'session.delete',
+              target: 'session',
+              order: 300,
+              observe: () => [],
+              resolve(target) {
+                const sessionId = target && target.sessionId;
+                if (!sessionId) return [];
+                return [
+                  {
+                    id: 'delete',
+                    label: '删除会话',
+                    run: () => deleteSession(sessionId),
+                  },
+                ];
+              },
+            }),
+          );
+        });
       },
     };
   },
