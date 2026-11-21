@@ -1,6 +1,6 @@
 {
   "name": "dsh-dev-modes",
-  "version": "1.1.17",
+  "version": "1.1.18",
   "type": "module",
   "description": "Three DeepSeek Harness Agent presets in one bundle — plus the per-session isolation and quiet-run switches: software development, game development, and read-only discussion, with the matching delivery and engine workflows bundled as skills.",
   "author": "qingfengshangnanzhi",
